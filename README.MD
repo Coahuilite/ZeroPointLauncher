@@ -1,3 +1,19 @@
+# ZeroPointLauncher：分层实例管理重构
+
+本 fork 延续原作者的实例继承、共享和差异管理理念，目标是通用 Minecraft 实例管理：GTNH-first，not only GTNH。
+
+当前开发入口是独立的 Java 25 文件层解析内核。通过“基础包 → 汉化 → 个人修改”的内存样例，讨论覆盖规则和文件来源；磁盘物化、启动游戏和新 UI 分阶段接入。
+
+- [运行文件系统原型](cleanroom/README.md)
+- [架构与规格](docs/cleanroom/README.md)
+- [分享前隐私检查](docs/cleanroom/sharing.md)
+
+新代码放在 `cleanroom/`，与下方历史实现的构建分开；不会在演示时扫描或修改真实游戏实例。
+
+---
+
+## 原项目说明（历史）
+
 # GTNH Launch
 一个GTNH整合包的专用启动器，因为是早期开发阶段，内部识别名为：ZeroPointLaunch (zpl)
 

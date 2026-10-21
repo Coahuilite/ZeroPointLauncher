@@ -1,0 +1,3 @@
+# Keep the new wrapper runnable from both Windows and POSIX shells.
+/cleanroom/gradlew text eol=lf
+/cleanroom/gradlew.bat text eol=crlf

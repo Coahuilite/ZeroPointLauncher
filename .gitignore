@@ -8,3 +8,15 @@
 /TestResources/
 /*/build/
 /*/out/
+
+# Cleanroom standalone Gradle build
+/cleanroom/.gradle/
+/cleanroom/**/.gradle/
+/cleanroom/build/
+/cleanroom/**/build/
+/cleanroom/out/
+/cleanroom/**/out/
+/cleanroom/.idea/
+/cleanroom/**/.idea/
+/cleanroom/local.properties
+/cleanroom/gradle-local.properties
