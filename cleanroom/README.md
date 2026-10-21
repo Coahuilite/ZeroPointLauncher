@@ -1,57 +1,52 @@
-# 运行三层实例原型
+# 两个同源实例，各自保留修改
 
-用一个小样例观察“基础包 → 汉化 → 个人修改”如何组成最终文件树，以及每个文件为什么来自某一层。这是 ZeroPointLauncher 文件系统重构的第一个可执行切片。
+从同一个玩家共享预设派生 A、B。在 A 中修改配置、添加文件、删除文件，然后重新准备：A 的改动保留，B 和原内容保持不变。这是当前可运行的文件系统切片。
 
-## 测试并运行
+## 运行真实工作区示例
 
 准备 JDK 25，并让本机 `JAVA_HOME` 指向它。从仓库根目录执行：
 
 **Windows PowerShell**
 
 ```powershell
-.\cleanroom\gradlew.bat -p cleanroom --no-daemon :layerfs:test :layerfs:run
+.\cleanroom\gradlew.bat -p cleanroom --no-daemon :workspace-nio:run
 ```
 
 **Linux / macOS shell**
 
 ```sh
-bash cleanroom/gradlew -p cleanroom --no-daemon :layerfs:test :layerfs:run
+bash cleanroom/gradlew -p cleanroom --no-daemon :workspace-nio:run
 ```
 
-首次运行会获取固定的 Gradle 9.2.1 和 Maven Central 测试依赖；缓存齐备后可以加 `--offline`。构建入口独立于根目录的旧 Gradle 工程，不初始化旧启动器、图形库或游戏实例。
+示例使用合成内容和新建实验目录，调用实际工作区实现；不会扫描 Minecraft、登录账户或操作真实游戏实例。按[用户验收指南](../docs/cleanroom/workspace-walkthrough.md)查看每一步的意义及如何保留样本检查文件。各平台实际验证状态见[验收记录](../docs/cleanroom/acceptance.md)。
 
-如果已安装 Gradle 9.2.1，也可以使用本轮已验证的入口：
+首次运行会获取固定的 Gradle 9.2.1 和 Maven Central 测试依赖；缓存齐备后可以加 `--offline`。构建入口独立于根目录的旧 Gradle 工程，不初始化旧启动器或图形库。本机 Java 路径及代理通过进程环境提供，不写入仓库。
 
-```sh
-gradle -p cleanroom --no-daemon :layerfs:test :layerfs:run
+## 测试及来源解释示例
+
+```powershell
+.\cleanroom\gradlew.bat -p cleanroom --no-daemon :layerfs:test :workspace-nio:test :layerfs:run :workspace-nio:run
 ```
 
-`test` 执行内存夹具；`run` 调用同一个解析器输出最终树、来源解释、删除原因和一个故意制造的类型冲突。示例内容是合成标识，不读取本机 Minecraft、账户或目录。
+如果已安装 Gradle 9.2.1，可将上述 `gradlew.bat` 入口替换为 `gradle`，保留 `-p cleanroom` 和任务参数。
 
-## 这轮实现什么
+原来的 `:layerfs:run` 仍是纯内存来源解释示例：显示最终文件树、来源选择、删除原因和类型冲突。它的派生层是可继承的内容声明，新的工作区示例才展示运行后的私有 delta。
 
-- 固定修订的单父继承，身份与显示名分离；拒绝缺失引用和环。
-- 显式共享内容层 → 祖先层 → 当前层的确定性解析。
-- 普通覆盖、来源排除、来源选择、删除标记和子树替换。
-- 保留候选及其遮蔽/排除原因，供之后的界面解释来源。
-- 逻辑路径校验、文件/目录冲突和同层规则冲突；不根据遍历顺序猜测结果。
+## 已实现与下一步
 
-不可变内容层负责“期望看到什么”，未来的宿主物化器负责“如何在磁盘上实现”。当前没有目录扫描、复制/链接、共享可写存档、三方升级或崩溃恢复；本轮通过的解析测试不能替代这些能力的验收。
+- 固定修订的单父继承、内容覆盖、来源解释和结构化冲突。
+- 基础包、玩家共享预设、派生实例共用 `Revision`；汉化不是特殊类型。
+- 真实文件的私有复制、持久基线、重新打开后的新增/修改/删除/类型变化比较。
+- 同基线重新准备保留当前工作区；拒绝用新基线覆盖个人修改。
+- 首次准备未完成、状态损坏、非法宿主路径等情况明确拒绝就绪。
 
-## 代码入口
+当前不做链接优化、三方升级、delta 提升、共享可写、完整崩溃恢复、旧实例导入、游戏启动或图形界面。后续从同基线保留推进到可预览的升级与恢复。
 
-实现位于 `layerfs/src/main/java/org/zeropointlauncher/layerfs/`：
+## 实现边界
 
-- [`LogicalPath`](layerfs/src/main/java/org/zeropointlauncher/layerfs/LogicalPath.java)：宿主无关的相对路径。
-- [`LayerFs`](layerfs/src/main/java/org/zeropointlauncher/layerfs/LayerFs.java)：修订、层、规则、结果和诊断的不可变值。
-- [`LayerResolver`](layerfs/src/main/java/org/zeropointlauncher/layerfs/LayerResolver.java)：纯解析入口。
-- [`LayerFsDemo`](layerfs/src/main/java/org/zeropointlauncher/layerfs/demo/LayerFsDemo.java)：三层样例。
-- [`LayerResolverTest`](layerfs/src/test/java/org/zeropointlauncher/layerfs/LayerResolverTest.java)：与规格场景关联的回归测试。
+- `layerfs`：纯解析、基线和 delta 规则，不访问磁盘。
+- `workspace-nio`：Java NIO 宿主实现，依赖 `layerfs`；执行复制、扫描、状态持久化和宿主路径检查。
 
-讨论行为时先看[文件系统契约](../docs/cleanroom/layerfs.md)；查看本轮证据与后续边界时看[验收](../docs/cleanroom/acceptance.md)。修改规则需同步契约和反例测试，而不是只改示例输出。
+解析入口见 [`LayerResolver`](layerfs/src/main/java/org/zeropointlauncher/layerfs/LayerResolver.java)，实例修订见 [`LayerFs`](layerfs/src/main/java/org/zeropointlauncher/layerfs/LayerFs.java)。工作区的契约与代码入口见[文件系统规格](../docs/cleanroom/layerfs.md)。
 
-## 如何继续参与
-
-首轮重点是检查继承、规则组合和来源解释是否符合预期。后续先接临时目录中的私有物化与写入隔离，再做三方升级和失败恢复。Qz 前端、游戏下载与启动继续使用独立边界。
-
-提交前运行[分享检查](../docs/cleanroom/sharing.md)。不要将机器上的 Java 位置写进构建文件，也不要上传包含本机路径的测试报告。
+修改行为时同步规格与反例测试。提交前运行[分享检查](../docs/cleanroom/sharing.md)，不要上传本机构建报告或实验目录。

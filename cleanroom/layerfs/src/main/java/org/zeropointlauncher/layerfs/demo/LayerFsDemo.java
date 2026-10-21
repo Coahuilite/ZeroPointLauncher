@@ -40,15 +40,16 @@ public final class LayerFsDemo {
                 Entry.file("config/ui/language.cfg", "base-language"),
                 Entry.file("config/game.cfg", "base-settings"),
                 Entry.file("mods/old.jar", "old-mod")));
-        Revision translation = revision("translation", "base", List.of(
+        Revision preset = revision("preset", "base", List.of(
                 Entry.file("config/ui/language.cfg", "translated-language"),
                 Entry.file("config/game.cfg", "translated-settings")));
-        Revision personal = revision("personal", "translation", List.of(Entry.file("mods/local.jar", "local-mod")),
+        Revision derived = revision("derived", "preset", List.of(Entry.file("mods/local.jar", "local-mod")),
                 new Select("use-original-settings", "base", Scope.single("config/game.cfg")),
                 new Delete("remove-old-mod", Scope.single("mods/old.jar")));
         LayerResolver resolver = new LayerResolver();
-        Resolution result = resolver.resolve(personal.id(), List.of(base, translation, personal), List.of());
-        System.out.println("Three-layer composition: " + String.join(" -> ", result.composition()));
+        Resolution result = resolver.resolve(derived.id(), List.of(base, preset, derived), List.of());
+        System.out.println("基础实例 → 玩家共享预设实例 → 派生实例：" + String.join(" -> ", result.composition()));
+        System.out.println("以下 Select/Delete 均为实例的可继承内容声明，不是运行后未发布的工作区 delta。");
         System.out.println("Visible tree:");
         result.visible().forEach((path, visible) -> System.out.printf("  %-29s %-9s %-22s origin=%s action=%s%n",
                 path, visible.entry().kind(), visible.entry().content().orElse("-"),
@@ -64,8 +65,8 @@ public final class LayerFsDemo {
                         reason.kind(), reason.action().layer(), reason.action().ruleId().orElse("-")));
             });
         }
-        Revision conflicting = revision("conflict", "translation", List.of(Entry.file("config", "not-a-directory")));
-        Resolution rejected = resolver.resolve(conflicting.id(), List.of(base, translation, conflicting), List.of());
+        Revision conflicting = revision("conflict", "preset", List.of(Entry.file("config", "not-a-directory")));
+        Resolution rejected = resolver.resolve(conflicting.id(), List.of(base, preset, conflicting), List.of());
         System.out.println("Rejected type-conflict example (usable tree = " + rejected.valid() + "):");
         rejected.diagnostics().forEach(diagnostic -> System.out.printf("  %s path=%s sources=%s: %s%n",
                 diagnostic.code(), diagnostic.path().map(Object::toString).orElse("-"),

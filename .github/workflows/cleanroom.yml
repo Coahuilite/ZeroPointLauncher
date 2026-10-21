@@ -1,4 +1,4 @@
-name: Cleanroom layerfs
+name: Cleanroom core and private workspace
 
 on:
   push:
@@ -45,6 +45,6 @@ jobs:
           & ./tools/check-share.ps1 -Tracked
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./tools/test-check-share.ps1
-      - name: Test and run the pure-core example
+      - name: Test cores and private workspace story
         shell: bash
-        run: bash cleanroom/gradlew -p cleanroom --no-daemon :layerfs:test :layerfs:run
+        run: bash cleanroom/gradlew -p cleanroom --no-daemon :layerfs:test :layerfs:run :workspace-nio:test :workspace-nio:run

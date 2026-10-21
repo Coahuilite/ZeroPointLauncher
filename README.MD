@@ -2,9 +2,10 @@
 
 本 fork 延续原作者的实例继承、共享和差异管理理念，目标是通用 Minecraft 实例管理：GTNH-first，not only GTNH。
 
-当前开发入口是独立的 Java 25 文件层解析内核。通过“基础包 → 汉化 → 个人修改”的内存样例，讨论覆盖规则和文件来源；磁盘物化、启动游戏和新 UI 分阶段接入。
+当前开发入口是独立的 Java 25 文件系统原型：解析“基础实例 → 玩家共享预设 → 派生实例”的内容，再以私有复制生成真实工作区，保留用户新增、修改与删除。共享预设与其他实例地位相同，汉化只是其中一种用途；未发布的用户 delta 独立于实例修订。
 
 - [运行文件系统原型](cleanroom/README.md)
+- [按用户故事验收两个独立实例](docs/cleanroom/workspace-walkthrough.md)
 - [架构与规格](docs/cleanroom/README.md)
 - [分享前隐私检查](docs/cleanroom/sharing.md)
 
