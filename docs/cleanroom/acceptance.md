@@ -15,8 +15,8 @@
 | 深度与确定性 | 夹具覆盖 20,000 级继承、200 级路径、输入排列及不可变结果；不据此宣称大整合包性能指标 |
 | 独立评审回归 | 后代排除/替换消解中间跨层类型冲突，以及带换行的盘符前缀绕过校验，两类反例已修复并加入测试 |
 | 分享文本检查 | 暂存区与工作区检查已接入；8 个隔离回归案例通过，包括暂存版本残留与不回显敏感值 |
-| 构建入口 | 同版本已安装 Gradle 的 `:layerfs:test :layerfs:run` 成功；标准 Wrapper 已生成，发行包下载重试仍因网络过慢中止，本机引导链尚未完整验证。网络可用时按原型入口补验 |
-| Linux / macOS | 本轮未本机验证；已提供 Windows/Linux 的 GitHub Actions 入口，尚未推送运行 |
+| 构建入口 | 已安装 Gradle 与标准 Wrapper 的 `:layerfs:test :layerfs:run` 均成功。本机经进程级代理完成发行包下载和 Wrapper 引导，示例重新执行；测试任务复用此前通过的结果（`UP-TO-DATE`） |
+| Windows / Linux CI；macOS | [首轮 GitHub Actions](https://github.com/Coahuilite/ZeroPointLauncher/actions/runs/39563690209) 在 Windows/Linux 上通过标准 Wrapper 执行测试、示例与分享检查；macOS 尚未验证 |
 | FS-05～FS-13；AR、RT、UI | 完整场景待实现/验证。纯路径校验不等于 FS-11 的宿主路径安全验收 |
 
 执行命令见[原型入口](../../cleanroom/README.md)。本机构建报告不提交；后来修改源码时以对应测试结果更新本节，不能沿用旧计数证明新候选。
