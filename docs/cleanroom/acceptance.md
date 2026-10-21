@@ -27,6 +27,8 @@
 
 本轮完整构建通过 53 项测试（原解析 30、纯工作区决策 4、NIO 工作区 19），零失败/错误/跳过。收尾针对样本清理再增加并通过 [2 项回归](../../cleanroom/workspace-nio/src/test/java/org/zeropointlauncher/workspace/nio/demo/PrivateWorkspaceDemoTest.java)，包括真实 Windows junction；受影响的默认示例也重新运行成功。
 
+首次发布 CI 的 Windows 作业暴露了祖先路径检查过严的问题。本机用真实 8.3 短名作为临时目录复现后，修复为先验证普通祖先，再统一父目录身份；新增短祖先重开与跨别名互斥两项回归。短名临时目录环境下全部 23 项宿主测试通过，零失败/错误/跳过，真实示例也成功；运行根末段别名和 junction 的拒绝行为保持。两个示例及 CI 的 Java 标准输出统一为 UTF-8。
+
 | 范围 | 当前证据与边界 |
 | --- | --- |
 | FS-05：私有复制与同基线保留 | [NioWorkspaceTest](../../cleanroom/workspace-nio/src/test/java/org/zeropointlauncher/workspace/nio/NioWorkspaceTest.java) 证明 A/B 与源文件独立，重开后保留新增、修改、删除、空目录及文件/目录类型变化；同长度/mtime 的实际修改也被识别 |
@@ -37,9 +39,9 @@
 | 评审发现的反例 | 丢失清单或整个状态目录后，空运行树不能重新初始化；Windows 尾点与实际 8.3 别名不能绕过原状态/锁。反例已修复并加入回归 |
 | 本机宿主检查 | 实际 Windows junction 夹具覆盖运行根、祖先、管理目录、锁、清单及运行子目录；大小写/名称冲突和已占用锁有对应检查 |
 | 可观察的用户故事 | `:workspace-nio:run` 实际复制、修改、重开并验证；`--keep` 留下新的合成样本供查看，原纯解析示例继续可运行 |
-| 平台范围 | 本轮新宿主代码只在 Windows 本机运行；Windows/Linux CI 已扩充任务，但本轮未推送运行，不能沿用第一轮 CI 证明新宿主兼容。macOS 尚未验证 |
+| 平台范围 | [本轮 GitHub Actions](https://github.com/Coahuilite/ZeroPointLauncher/actions/runs/39580682834) 已在 Windows/Linux 上通过两个模块的测试、两个示例及分享检查；Windows 示例中文输出正常。macOS 尚未验证 |
 
-FS-07～FS-13 的完整场景，以及 delta 提升、游戏启动和 UI 仍按后续阶段推进。本轮初次失败后拒绝假就绪，不等于完成断电恢复；准备期间的互斥也不等于游戏会话占用交接。现有链接和别名会被拒绝，尚未证明对恶意进程实时替换路径的无竞争防护。
+FS-07～FS-13 的完整场景，以及 delta 提升、游戏启动和 UI 仍按后续阶段推进。本轮初次失败后拒绝假就绪，不等于完成断电恢复；准备期间的互斥也不等于游戏会话占用交接。现有链接和运行根末段别名会被拒绝，尚未证明对恶意进程实时替换路径的无竞争防护。
 
 ## 使用三层证据，不相互替代
 
