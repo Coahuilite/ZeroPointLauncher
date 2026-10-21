@@ -47,4 +47,6 @@ jobs:
           & ./tools/test-check-share.ps1
       - name: Test cores and private workspace story
         shell: bash
+        env:
+          JAVA_TOOL_OPTIONS: '-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8'
         run: bash cleanroom/gradlew -p cleanroom --no-daemon :layerfs:test :layerfs:run :workspace-nio:test :workspace-nio:run

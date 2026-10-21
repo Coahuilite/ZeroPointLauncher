@@ -20,6 +20,9 @@ dependencies {
 
 test { useJUnitPlatform() }
 
-application { mainClass = 'org.zeropointlauncher.workspace.nio.demo.PrivateWorkspaceDemo' }
+application {
+    mainClass = 'org.zeropointlauncher.workspace.nio.demo.PrivateWorkspaceDemo'
+    applicationDefaultJvmArgs = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']
+}
 
 tasks.named('run', JavaExec) { workingDir projectDir }

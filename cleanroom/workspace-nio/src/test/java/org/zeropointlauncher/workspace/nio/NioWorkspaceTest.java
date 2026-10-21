@@ -308,17 +308,72 @@ class NioWorkspaceTest {
         assertTrue(Files.isSameFile(root, dotted), "Exercise the real Windows alias, not merely a string check");
         error(NAME_CONFLICT, () -> prepare(dotted, revision));
         assertFalse(Files.exists(root.resolve("x")));
-        String script = "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); "
-                + "$f=New-Object -ComObject Scripting.FileSystemObject; $f.GetFolder('"
-                + root.toString().replace("'", "''") + "').ShortPath";
-        String shortName = powershell(script).strip();
-        Path shortPath = Path.of(shortName);
-        if (!root.toRealPath().toString().equalsIgnoreCase(shortName)) {
+        Path shortPath = shortDirectory(root);
+        if (!root.toRealPath().getFileName().toString().equalsIgnoreCase(shortPath.getFileName().toString())) {
             assertTrue(Files.isSameFile(root, shortPath));
             error(INVALID_LOCATION, () -> prepare(shortPath, revision));
             assertFalse(Files.exists(root.resolve("x")));
         }
         assertEquals(Change.DELETED, change(prepare(root, revision), "x"));
+    }
+
+    @Test @EnabledOnOs(OS.WINDOWS)
+    @DisplayName("FS-05 / FS-11: verified short-name ancestors share canonical state and preserve reopened user delta")
+    void shortAncestorUsesTheSameBaselineAndPrivateTree() throws Exception {
+        Path parent = Files.createDirectory(temp.resolve("Long Ancestor Name")).toRealPath(java.nio.file.LinkOption.NOFOLLOW_LINKS);
+        Path shortParent = shortDirectory(parent);
+        org.junit.jupiter.api.Assumptions.assumeFalse(parent.toString().equalsIgnoreCase(shortParent.toString()),
+                "This filesystem does not provide a short directory alias");
+        assertTrue(Files.isSameFile(parent, shortParent));
+        Path canonicalRoot = parent.resolve("workspace");
+        Path shortAncestorRoot = shortParent.resolve("workspace");
+        Revision revision = revision("instance", null, Entry.file("x", "ref"), Entry.file("removed", "other"));
+        prepare(shortAncestorRoot, revision);
+        Files.writeString(canonicalRoot.resolve("x"), "private modification");
+        Files.delete(canonicalRoot.resolve("removed"));
+        NioWorkspace.Prepared reopened = prepare(canonicalRoot, revision);
+        assertEquals(Change.MODIFIED, change(reopened, "x"));
+        assertEquals(Change.DELETED, change(reopened, "removed"));
+        assertEquals(reopened, prepare(shortAncestorRoot, revision));
+        assertEquals("private modification", Files.readString(canonicalRoot.resolve("x")));
+        assertFalse(Files.exists(canonicalRoot.resolve("removed")));
+        assertTrue(Files.isSameFile(NioWorkspace.stateDirectory(canonicalRoot).resolve("manifest.bin"),
+                NioWorkspace.stateDirectory(shortAncestorRoot).resolve("manifest.bin")));
+    }
+
+    @Test @EnabledOnOs(OS.WINDOWS)
+    @DisplayName("FS-05: canonical and short-ancestor paths cannot obtain separate first-preparation locks")
+    void shortAncestorAndCanonicalRequestsShareThePreparationLock() throws Exception {
+        assertTimeoutPreemptively(Duration.ofSeconds(15), () -> {
+            Path parent = Files.createDirectory(temp.resolve("Long Lock Ancestor")).toRealPath(java.nio.file.LinkOption.NOFOLLOW_LINKS);
+            Path shortParent = shortDirectory(parent);
+            org.junit.jupiter.api.Assumptions.assumeFalse(parent.toString().equalsIgnoreCase(shortParent.toString()),
+                    "This filesystem does not provide a short directory alias");
+            Revision revision = revision("instance", null, Entry.file("x", "ref"));
+            Path canonicalRoot = parent.resolve("workspace");
+            Path shortAncestorRoot = shortParent.resolve("workspace");
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            ArtifactSource waiting = reference -> {
+                entered.countDown();
+                try {
+                    if (!release.await(10, TimeUnit.SECONDS)) throw new IOException("Test release timed out");
+                } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IOException(e); }
+                return source().open(reference);
+            };
+            try (var workers = Executors.newVirtualThreadPerTaskExecutor()) {
+                var first = workers.submit(() -> new NioWorkspace().prepare(shortAncestorRoot,
+                        revision.id(), resolve(revision), waiting, NAMES));
+                try {
+                    assertTrue(entered.await(5, TimeUnit.SECONDS));
+                    error(BUSY, () -> prepare(canonicalRoot, revision));
+                } finally { release.countDown(); }
+                assertEquals(Decision.INITIAL_COPY, first.get(5, TimeUnit.SECONDS).plan().decision());
+            }
+            assertEquals(Decision.PRESERVE, prepare(canonicalRoot, revision).plan().decision());
+            assertTrue(Files.isSameFile(NioWorkspace.stateDirectory(canonicalRoot).resolve("lock"),
+                    NioWorkspace.stateDirectory(shortAncestorRoot).resolve("lock")));
+        });
     }
 
     @Test @DisplayName("FS-05 / FS-11: target naming conflicts are rejected before artifact access or runtime creation")
@@ -467,5 +522,12 @@ class NioWorkspaceTest {
         try (InputStream output = process.getInputStream()) { result = new String(output.readAllBytes(), StandardCharsets.UTF_8); }
         assertEquals(0, process.waitFor(), "Isolated Windows filesystem fixture creation must succeed");
         return result;
+    }
+
+    private static Path shortDirectory(Path directory) throws Exception {
+        String script = "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); "
+                + "$f=New-Object -ComObject Scripting.FileSystemObject; $f.GetFolder('"
+                + directory.toString().replace("'", "''") + "').ShortPath";
+        return Path.of(powershell(script).strip());
     }
 }

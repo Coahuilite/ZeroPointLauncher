@@ -81,7 +81,6 @@ public final class NioWorkspace {
         }
         Path root = workspace.toAbsolutePath().normalize();
         if (root.getParent() == null) throw new WorkspaceException(INVALID_LOCATION, null, "工作区不能是文件系统根目录");
-        Path state = stateDirectory(root);
         try {
             if (NamePolicy.hostDefault().windowsNames()) {
                 for (Path segment : root) NamePolicy.hostDefault().validate(List.of(LogicalPath.of(segment.toString())));
@@ -92,6 +91,10 @@ public final class NioWorkspace {
             String revisionIdentity = StateManifest.revisionIdentity(target);
             String resolutionIdentity = StateManifest.resolutionIdentity(resolution);
             safeAncestors(root.getParent());
+            // A verified ordinary ancestor may use an OS-provided short name (for example TEMP).
+            // Canonicalize its identity before deriving either runtime or state/lock locations.
+            root = root.getParent().toRealPath(NOFOLLOW_LINKS).resolve(root.getFileName());
+            Path state = stateDirectory(root);
             if (attributes(root) != null) {
                 requireDirectory(root, null);
                 rejectAlias(root);
@@ -303,7 +306,6 @@ public final class NioWorkspace {
         for (Path segment : directory) {
             current = current.resolve(segment);
             requireDirectory(current, null);
-            rejectAlias(current);
         }
     }
 

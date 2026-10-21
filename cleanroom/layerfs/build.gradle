@@ -29,4 +29,5 @@ test {
 
 application {
     mainClass = 'org.zeropointlauncher.layerfs.demo.LayerFsDemo'
+    applicationDefaultJvmArgs = ['-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']
 }
