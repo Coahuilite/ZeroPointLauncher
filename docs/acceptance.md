@@ -47,7 +47,7 @@ FS-07～FS-13 的完整场景，以及 delta 提升、游戏启动和 UI 仍按�
 
 实现模块迁移为根目录的 `layerfs/`、`workspace-nio/`，标准 Wrapper 和 `settings.gradle` 成为唯一构建入口；规格迁移到 `docs/`。这次目录调整不改变 FS、RT、AR 契约，也不新增功能或平台支持声明。
 
-本机 Windows x86_64、Zulu JDK 25（25+36）通过根 Wrapper 运行全部 57 项测试（解析与决策 34、宿主与样本清理 23），零失败/错误/跳过；两个示例实际运行成功，真实合成工作区的修改保留与双向隔离断言通过。分享检查及 8 个隔离回归通过。上两轮历史 CI 不作为本次目录迁移的远端证据；本次 CI 待推送后记录，macOS 仍未验证。
+本机 Windows x86_64、Zulu JDK 25（25+36）通过根 Wrapper 运行全部 57 项测试（解析与决策 34、宿主与样本清理 23），零失败/错误/跳过；两个示例实际运行成功，真实合成工作区的修改保留与双向隔离断言通过。分享检查及 8 个隔离回归通过。[本次根工程 CI](https://github.com/Coahuilite/ZeroPointLauncher/actions/runs/39752792451) 在 Windows/Linux 上通过两模块测试、两个示例与分享检查；macOS 仍未验证。
 
 ## 使用三层证据，不相互替代
 
