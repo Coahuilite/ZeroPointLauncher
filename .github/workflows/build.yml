@@ -1,0 +1,66 @@
+name: ZeroPointLauncher build
+
+on:
+  push:
+    paths:
+      - 'layerfs/**'
+      - 'workspace-nio/**'
+      - 'gradle/wrapper/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'settings.gradle'
+      - 'docs/**'
+      - 'tools/check-share.ps1'
+      - 'tools/test-check-share.ps1'
+      - '.github/workflows/build.yml'
+      - '.gitignore'
+      - '.gitattributes'
+      - 'README.md'
+      - 'README.MD'
+  pull_request:
+    paths:
+      - 'layerfs/**'
+      - 'workspace-nio/**'
+      - 'gradle/wrapper/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'settings.gradle'
+      - 'docs/**'
+      - 'tools/check-share.ps1'
+      - 'tools/test-check-share.ps1'
+      - '.github/workflows/build.yml'
+      - '.gitignore'
+      - '.gitattributes'
+      - 'README.md'
+      - 'README.MD'
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Check public text and scanner regressions
+        shell: pwsh
+        run: |
+          & ./tools/check-share.ps1 -Tracked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./tools/test-check-share.ps1
+      - name: Test cores and private workspace story
+        shell: bash
+        env:
+          JAVA_TOOL_OPTIONS: '-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8'
+        run: bash ./gradlew --no-daemon :layerfs:test :workspace-nio:test :layerfs:run :workspace-nio:run

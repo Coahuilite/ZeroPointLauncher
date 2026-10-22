@@ -1,22 +1,15 @@
-# 默认忽略的文件
-/.gradle/
-/.idea/
+# Gradle and build output (root and nested projects)
+**/.gradle/
+**/build/
+**/out/
+
+# IDE and local machine configuration
+**/.idea/
+local.properties
+gradle-local.properties
+
+# Private/user data
 /.GTNH/
 /UI/.GTNH/
 /UI/logs/
-/build/
 /TestResources/
-/*/build/
-/*/out/
-
-# Cleanroom standalone Gradle build
-/cleanroom/.gradle/
-/cleanroom/**/.gradle/
-/cleanroom/build/
-/cleanroom/**/build/
-/cleanroom/out/
-/cleanroom/**/out/
-/cleanroom/.idea/
-/cleanroom/**/.idea/
-/cleanroom/local.properties
-/cleanroom/gradle-local.properties

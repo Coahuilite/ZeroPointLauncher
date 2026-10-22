@@ -1,6 +1,3 @@
-rootProject.name = 'ZeroPointLaunch'
-include 'Core'
-include 'MappingTools'
-include 'UI'
-include 'Launcher'
-
+rootProject.name = 'ZeroPointLauncher'
+include 'layerfs'
+include 'workspace-nio'
