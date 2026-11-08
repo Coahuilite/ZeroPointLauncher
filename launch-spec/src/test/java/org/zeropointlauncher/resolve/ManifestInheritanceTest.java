@@ -15,13 +15,13 @@ class ManifestInheritanceTest {
     void resovleInheritance(){
         //三层测试用例
         var base = new ManifestFragment(
-                "base", Optional.empty(), Optional.of("test.BaseMain"), Optional.empty()
+                "base", Optional.empty(), Optional.of("test.BaseMain"), Optional.empty(), List.of()
         );
         var loader = new ManifestFragment(
-                "loader", Optional.of("base"), Optional.of("test.LoaderMain"), Optional.empty()
+                "loader", Optional.of("base"), Optional.of("test.LoaderMain"), Optional.empty(), List.of()
         );
         var child = new ManifestFragment(
-                "child", Optional.of("loader"), Optional.empty(), Optional.empty()
+                "child", Optional.of("loader"), Optional.empty(), Optional.empty(), List.of()
         );
 
         var manifests = Map.of("base", base, "loader", loader, "child", child);

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.zeropointlauncher.launch.model.LaunchArgument;
+import org.zeropointlauncher.launch.model.Library;
+import org.zeropointlauncher.launch.model.Library.DownloadArtifact;
 import org.zeropointlauncher.launch.model.ManifestFragment;
 import org.zeropointlauncher.launch.model.ManifestFragment.ArgumentsBlock;
 import org.zeropointlauncher.launch.model.Rule;
@@ -41,7 +43,8 @@ public final class ManifestFragmentParser {
                 id,
                 readText(sth, "inheritsFrom"),
                 readText(sth, "mainClass"),
-                readArguments(sth)
+                readArguments(sth),
+                readLibraries(sth)
         );
     }
 
@@ -57,6 +60,110 @@ public final class ManifestFragmentParser {
             throw new IllegalArgumentException(name + " 必须是非空白字符串");
         }//如果value是非字符串，比如"mainclass" = 42，textValue必定返回null；同时防止value为空的字符串
         return Optional.of(value);
+    }
+
+    /**
+     * 解析版本清单中的 libraries 依赖项列表。
+     * <p>
+     * 若字段缺省则返回只读空列表；若存在则强制校验其必须为 JSON 数组，并逐项转换为不可变 Library 实体
+     *
+     * @param root 版本清单 JSON
+     * @return 完整解析后的依赖库列表
+     */
+    private static List<Library> readLibraries(JsonNode root) {
+        var array = root.get("libraries");
+        if (array == null) {
+            return List.of();
+        }
+        if (!array.isArray()) {
+            throw new IllegalArgumentException("libraries 必须是数组");
+        }
+
+        var libraries = new ArrayList<Library>();
+        for (var node : array) {
+            libraries.add(readLibrary(node));//将数组的每个json元素逐项解析并返回收集为List<>
+        }
+        return libraries;
+    }
+
+    /**
+     * 解析单个依赖项节点，提取 Maven 坐标、产物下载信息、多平台分类器及提取规则
+     * @param node 单个依赖库的 JSON 的节点
+     * @return 组装完成的 Library 实体
+     */
+    private static Library readLibrary(JsonNode node) {
+        String name = requiredText(node, "name");
+        var downloads = optionalObject(node, "downloads");
+        var artifact = Optional.ofNullable(downloads.get("artifact"))
+                .map(ManifestFragmentParser::readDownloadArtifact);
+
+        var classifiers = new HashMap<String, DownloadArtifact>();
+        for (var entry : optionalObject(downloads, "classifiers").properties()) {
+            classifiers.put(entry.getKey(), readDownloadArtifact(entry.getValue()));
+        }
+
+        var nativeMappings = optionalObject(node, "natives");
+        var natives = new HashMap<String, String>();
+        for (var entry : nativeMappings.properties()) {
+            natives.put(entry.getKey(), requiredText(nativeMappings, entry.getKey()));
+        }
+
+        var rules = node.get("rules");
+        var exclude = optionalObject(node, "extract").get("exclude");
+        if (exclude != null && !exclude.isArray()) {
+            throw new IllegalArgumentException("extract.exclude 必须是字符串数组");
+        }
+        return new Library(
+                name,
+                readText(node, "url"),
+                artifact,
+                classifiers,
+                natives,
+                rules == null ? List.of() : readRules(rules),
+                exclude == null ? List.of() : readStringElements(exclude, "extract.exclude")
+        );
+    }
+
+    /**
+     * 解析可下载构件元数据，包含相对路径、哈希校验码、文件大小与下载 URL
+     * <p>
+     * 严格校验 size 必须为 long 范围内的整数
+     * @param node 构件下载信息的 JSON 节点
+     * @return DownloadArtifact 实体
+     */
+    private static DownloadArtifact readDownloadArtifact(JsonNode node) {
+        String path = requiredText(node, "path");
+        String sha1 = requiredText(node, "sha1");
+        var size = node.required("size");
+        if (!size.isIntegralNumber() || !size.canConvertToLong()) {
+            throw new IllegalArgumentException("制品 size 必须是 long 范围内的整数");
+        }
+        return new DownloadArtifact(path, sha1, size.longValue(), requiredText(node, "url"));
+    }
+
+    /**
+     * 安全提取指定的必填字符串字段。
+     * @return 提取出的非空字符串内容
+     */
+    private static String requiredText(JsonNode object, String name) {
+        return readText(object, name)
+                .orElseThrow(() -> new IllegalArgumentException("清单缺少 " + name));
+    }
+
+    /**
+     * 安全提取选填的 JSON 子对象
+     * <p>
+     * 若字段不存在则返回空节点，若存在但非JSON则抛出异常
+     * @param parent 父JSON节点
+     * @param name   目标名称
+     * @return 存在的对象节点或缺失节点
+     */
+    private static JsonNode optionalObject(JsonNode parent, String name) {
+        var node = parent.path(name);//节点不存在时MissingNode而非Null
+        if (!node.isMissingNode() && !node.isObject()) {
+            throw new IllegalArgumentException(name + " 必须是 JSON 对象");
+        }
+        return node;
     }
 
     /**
@@ -119,11 +226,15 @@ public final class ManifestFragmentParser {
             throw new IllegalArgumentException("条件参数的 value 必须是字符串或字符串数组");
         }
 
+        return readStringElements(value, "条件参数的 value");
+    }
+
+    private static List<String> readStringElements(JsonNode array, String name) {
         var values = new ArrayList<String>();
-        for (var item : value) {
+        for (var item : array) {
             String text = item.textValue();
             if (text == null) {
-                throw new IllegalArgumentException("条件参数的 value 数组只能包含字符串");
+                throw new IllegalArgumentException(name + " 数组只能包含字符串");
             }
             values.add(text);
         }
