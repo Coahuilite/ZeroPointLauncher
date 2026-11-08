@@ -2,56 +2,60 @@ package org.zeropointlauncher.launch.resolve;
 
 import org.zeropointlauncher.launch.model.ManifestFragment;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public final class ManifestInheritance {
-    //理清顺序关系
+    /** 返回 parent -> child 顺序的不可变链。 */
     public List<ManifestFragment> resolveChain(
             String targetID,
             Map<String, ManifestFragment> manifestsByID
-    ){
-        //临时列表 用于存放 顶层 -> 底层 的轨迹
+    ) {
+        Objects.requireNonNull(targetID, "targetID");
+        Objects.requireNonNull(manifestsByID, "manifestsByID");
+
         var childToRoot = new ArrayList<ManifestFragment>();
         var visited = new HashSet<String>();
-        String currentID = targetID;//当前正在调查的版本ID
+        String currentID = targetID;
 
-        while (true){
-            //死循环排除
-            if(!visited.add(currentID)){
-                throw new IllegalArgumentException("清单继承陷入成环" + currentID);
+        while (true) {
+            if (!visited.add(currentID)) {
+                throw new IllegalArgumentException("清单继承陷入成环: " + currentID);
             }
 
-            var fragment = manifestsByID.get(currentID);//查currentID具体内容
-            if(fragment == null){
-                throw new IllegalArgumentException("找不到清单" + currentID);
+            var fragment = manifestsByID.get(currentID);
+            if (fragment == null) {
+                throw new IllegalArgumentException("找不到清单: " + currentID);
             }
             childToRoot.add(fragment);
 
             var parentID = fragment.inheritsFrom();
-            if(parentID.isEmpty()){
+            if (parentID == null) {
                 return List.copyOf(childToRoot.reversed());
             }
-            currentID = parentID.get();
+            currentID = parentID;
         }
     }
 
-    //通过resolveChain()方法给出的结果，敲定最终的MainClass
     public String resolveMainClass(
             String tarID,
             Map<String, ManifestFragment> manifestsByID
-    ){
-        Optional<String> effectiveMainClass = Optional.empty();
+    ) {
+        String effectiveMainClass = null;
 
-        //顺着继承链由底层到顶层逐步覆盖主类
-        for(var fragment : resolveChain(tarID, manifestsByID)){
+        for (var fragment : resolveChain(tarID, manifestsByID)) {
             var declaredMainClass = fragment.mainClass();
-            if(declaredMainClass.isPresent()){
+            if (declaredMainClass != null) {
                 effectiveMainClass = declaredMainClass;
             }
         }
 
-        return effectiveMainClass.orElseThrow(
-                () -> new IllegalArgumentException("继承后缺少mainClass：" + tarID)
-        );
+        if (effectiveMainClass == null) {
+            throw new IllegalArgumentException("继承后缺少 mainClass: " + tarID);
+        }
+        return effectiveMainClass;
     }
 }

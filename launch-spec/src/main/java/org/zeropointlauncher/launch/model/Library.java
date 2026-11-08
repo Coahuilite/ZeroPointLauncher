@@ -1,45 +1,121 @@
 package org.zeropointlauncher.launch.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.zeropointlauncher.launch.json.JsonSupport;
+
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Minecraft 依赖库实体定义。
  * <p>
- * 封装游戏运行所需的 Java 类库（Jar）或本地动态链接库（Natives）的元数据与下载信息。
- * 紧凑构造函数对所有集合字段执行 防御性 拷贝
- *
- * @param name            Maven 规范坐标（如 "org.lwjgl:lwjgl:3.3.1"）
- * @param repositoryUrl   自定义 Maven 远程仓库基地址（选填，常用于第三方模组加载器或自定义补丁库）
- * @param artifact        主产物 Jar 包的下载描述实体（选填，若仅提供特定平台 Natives 分类包时可为空）
- * @param classifiers     不同平台或环境的分类产物映射表（"natives-windows"）
- * @param natives         操作系统名称到具体分类器名称的映射规则（"windows" -> "natives-windows"）
- * @param rules           依赖项的启用规则列表，基于宿主环境判定是否需要加载该库（复用统一 Rule 模型）
- * @param extractExcludes 本地库解压提取到运行目录时需排除的文件路径列表（如排除 "META-INF/"）
+ * 与版本 JSON 的 library 对象同构；集合字段在紧凑构造函数中做防御性拷贝。
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record Library(
-        String name,
-        Optional<String> repositoryUrl,
-        Optional<DownloadArtifact> artifact,
-        Map<String, DownloadArtifact> classifiers,
+        @JsonDeserialize(using = JsonSupport.TextualOnlyDeserializer.class) String name,
+        @JsonDeserialize(using = JsonSupport.TextualOnlyDeserializer.class) String url,
+        Downloads downloads,
         Map<String, String> natives,
+        @JsonDeserialize(contentUsing = JsonSupport.RuleDeserializer.class)
+        @JsonSetter(nulls = Nulls.AS_EMPTY)
         List<Rule> rules,
-        List<String> extractExcludes
+        Extract extract
 ) {
     public Library {
-        classifiers = Map.copyOf(classifiers);
-        natives = Map.copyOf(natives);
-        rules = List.copyOf(rules);
-        extractExcludes = List.copyOf(extractExcludes);
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("libraries[].name 不能为空");
+        }
+        name = name.strip();
+        url = blankToNull(url);
+        natives = copyNonNull(natives);
+        rules = rules == null
+                ? List.of()
+                : rules.stream().map(rule -> rule == null ? Rule.deny() : rule).toList();
+    }
+
+    public DownloadArtifact artifact() {
+        return downloads == null ? null : downloads.artifact();
+    }
+
+    public Map<String, DownloadArtifact> classifiers() {
+        return downloads == null ? Map.of() : downloads.classifiers();
+    }
+
+    public List<String> extractExcludes() {
+        return extract == null ? List.of() : extract.exclude();
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Downloads(
+            DownloadArtifact artifact,
+            @JsonSetter(nulls = Nulls.AS_EMPTY) Map<String, DownloadArtifact> classifiers
+    ) {
+        public Downloads {
+            classifiers = copyNonNull(classifiers);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Extract(
+            @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
+            @JsonSetter(nulls = Nulls.AS_EMPTY)
+            List<String> exclude
+    ) {
+        public Extract {
+            exclude = exclude == null ? List.of() : List.copyOf(exclude);
+        }
     }
 
     /**
-     * 单个可下载构件的描述实体，提供安全下载及完整性校验所需的四要素元数据。
-     * @param path 本地存储的相对文件路径（如 "org/lwjgl/lwjgl/3.3.1/lwjgl-3.3.1.jar"）
-     * @param sha1 文件的 SHA-1 哈希校验值，用于检测网络损坏或篡改
-     * @param size 文件体积的字节大小，用于校验与 UI 下载进度统计
-     * @param url  远程文件的官方或镜像直链下载地址
+     * 单个可下载构件。path 是下载落盘布局的唯一硬依赖；sha1/size/url 允许缺失，
+     * 由下载层决定是否跳过完整性校验或改走镜像/Maven 推导。
      */
-    public record DownloadArtifact(String path, String sha1, long size, String url) {}
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DownloadArtifact(
+            @JsonDeserialize(using = JsonSupport.TextualOnlyDeserializer.class) String path,
+            @JsonDeserialize(using = JsonSupport.TextualOnlyDeserializer.class) String sha1,
+            @JsonDeserialize(using = JsonSupport.LenientSizeDeserializer.class) Long size,
+            @JsonDeserialize(using = JsonSupport.TextualOnlyDeserializer.class) String url
+    ) {
+        public DownloadArtifact {
+            if (path == null || path.isBlank()) {
+                throw new IllegalArgumentException("downloads.artifact.path 不能为空");
+            }
+            path = path.strip();
+            sha1 = blankToNull(sha1);
+            size = size != null && size < 0 ? null : size;
+            url = blankToNull(url);
+        }
+
+        public boolean hasIntegrity() {
+            return sha1 != null && size != null && size > 0;
+        }
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String stripped = value.strip();
+        return stripped.isEmpty() ? null : stripped;
+    }
+
+    private static <V> Map<String, V> copyNonNull(Map<String, V> source) {
+        if (source == null) {
+            return Map.of();
+        }
+        var result = new LinkedHashMap<String, V>();
+        source.forEach((key, value) -> {
+            if (key != null && value != null) {
+                result.put(key, value);
+            }
+        });
+        return Map.copyOf(result);
+    }
 }

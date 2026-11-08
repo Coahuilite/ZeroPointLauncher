@@ -1,18 +1,52 @@
 package org.zeropointlauncher.launch.model;
 
-import java.util.Map;
-import java.util.Optional;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.zeropointlauncher.launch.json.JsonSupport;
 
-public record Rule(Action action, Optional<OsRule> os, Map<String, Boolean> features) {
+import java.util.Map;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record Rule(
+        Action action,
+        Os os,
+        @JsonDeserialize(using = JsonSupport.LenientFeaturesDeserializer.class)
+        Map<String, Boolean> features
+) {
     public Rule {
-        features = Map.copyOf(features);
+        action = action == null ? Action.DISALLOW : action;
+        features = features == null ? Map.of() : Map.copyOf(features);
     }
 
-    public enum Action { ALLOW, DISALLOW }
+    public static Rule deny() {
+        return new Rule(Action.DISALLOW, null, Map.of());
+    }
 
-    public record OsRule(
-            Optional<String> name,
-            Optional<String> arch,
-            Optional<String> version
-    ) {}
+    public enum Action {
+        ALLOW,
+        DISALLOW;
+
+        @JsonCreator
+        public static Action fromJson(String value) {
+            return "allow".equalsIgnoreCase(value) ? ALLOW : DISALLOW;
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Os(String name, String arch, String version) {
+        public Os {
+            name = blankToNull(name);
+            arch = blankToNull(arch);
+            version = blankToNull(version);
+        }
+
+        private static String blankToNull(String value) {
+            if (value == null) {
+                return null;
+            }
+            String stripped = value.strip();
+            return stripped.isEmpty() ? null : stripped;
+        }
+    }
 }
