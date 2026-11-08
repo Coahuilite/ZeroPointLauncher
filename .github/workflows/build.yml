@@ -63,4 +63,10 @@ jobs:
         shell: bash
         env:
           JAVA_TOOL_OPTIONS: '-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8'
-        run: bash ./gradlew --no-daemon :layerfs:test :workspace-nio:test :layerfs:run :workspace-nio:run
+        run: |
+          TASKS=":layerfs:test :workspace-nio:test :layerfs:run :workspace-nio:run"
+          if command -v gradle >/dev/null 2>&1; then
+            gradle --no-daemon $TASKS
+          else
+            bash ./gradlew --no-daemon $TASKS
+          fi
