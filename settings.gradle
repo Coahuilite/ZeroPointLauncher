@@ -1,3 +1,4 @@
 rootProject.name = 'ZeroPointLauncher'
 include 'layerfs'
 include 'workspace-nio'
+include 'launch-spec'
