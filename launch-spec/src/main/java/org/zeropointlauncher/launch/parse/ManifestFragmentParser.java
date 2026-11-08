@@ -43,6 +43,7 @@ public final class ManifestFragmentParser {
                 id,
                 readText(sth, "inheritsFrom"),
                 readText(sth, "mainClass"),
+                readString(sth, "minecraftArguments"),
                 readArguments(sth),
                 readLibraries(sth)
         );
@@ -50,15 +51,23 @@ public final class ManifestFragmentParser {
 
     //辅助字段提取方法
     private static Optional<String> readText(JsonNode object, String name){
+        var value = readString(object, name);
+        if (value.isPresent() && value.get().isBlank()) {
+            throw new IllegalArgumentException(name + " 必须是非空白字符串");
+        }
+        return value;
+    }
+
+    private static Optional<String> readString(JsonNode object, String name) {
         JsonNode field = object.get(name);
-        if(field == null){
+        if (field == null) {
             return Optional.empty();
-        }//字段为空返回空的容器而非Null
+        }
 
         String value = field.textValue();
-        if(value == null || value.isBlank()){
-            throw new IllegalArgumentException(name + " 必须是非空白字符串");
-        }//如果value是非字符串，比如"mainclass" = 42，textValue必定返回null；同时防止value为空的字符串
+        if (value == null) {
+            throw new IllegalArgumentException(name + " 必须是字符串");
+        }
         return Optional.of(value);
     }
 

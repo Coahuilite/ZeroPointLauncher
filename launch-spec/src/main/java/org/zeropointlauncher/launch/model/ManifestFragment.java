@@ -7,6 +7,7 @@ public record ManifestFragment(
         String id,
         Optional<String> inheritsFrom,
         Optional<String> mainClass,
+        Optional<String> minecraftArguments,
         Optional<ArgumentsBlock> arguments,
         List<Library> libraries
 ) {

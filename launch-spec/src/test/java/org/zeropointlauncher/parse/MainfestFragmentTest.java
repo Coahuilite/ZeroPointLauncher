@@ -24,8 +24,23 @@ class MainfestFragmentTest {
         assertEquals("demo", fragment.id());
         assertEquals(Optional.of("base_demo"), fragment.inheritsFrom());
         assertTrue(fragment.mainClass().isEmpty());
+        assertTrue(fragment.minecraftArguments().isEmpty());
         assertTrue(fragment.arguments().isEmpty());
         assertTrue(fragment.libraries().isEmpty());
+    }
+
+    @Test
+    void preservesLegacyMinecraftArguments() {
+        var fragment = parser.parse("""
+                {
+                  "id": "legacy-demo",
+                  "minecraftArguments": "  --username \\"Demo Player\\"  --gameDir ${game_directory}  "
+                }
+                """);
+
+        assertEquals(Optional.of("  --username \"Demo Player\"  --gameDir ${game_directory}  "),
+                fragment.minecraftArguments());
+        assertTrue(fragment.arguments().isEmpty());
     }
 
     //验证game和jvm的参数按原顺序解析，参数中的空格和占位符均保留
