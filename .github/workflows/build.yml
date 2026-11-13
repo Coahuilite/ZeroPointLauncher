@@ -5,6 +5,7 @@ on:
     paths:
       - 'layerfs/**'
       - 'workspace-nio/**'
+      - 'launch-spec/**'
       - 'gradle/wrapper/**'
       - 'gradlew'
       - 'gradlew.bat'
@@ -21,6 +22,7 @@ on:
     paths:
       - 'layerfs/**'
       - 'workspace-nio/**'
+      - 'launch-spec/**'
       - 'gradle/wrapper/**'
       - 'gradlew'
       - 'gradlew.bat'
@@ -63,4 +65,4 @@ jobs:
         shell: bash
         env:
           JAVA_TOOL_OPTIONS: '-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8'
-        run: bash ./gradlew --no-daemon :layerfs:test :workspace-nio:test :layerfs:run :workspace-nio:run
+        run: bash ./gradlew --no-daemon :launch-spec:test :layerfs:test :workspace-nio:test :layerfs:run :workspace-nio:run

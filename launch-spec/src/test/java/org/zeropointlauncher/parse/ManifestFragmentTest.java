@@ -3,13 +3,17 @@ package org.zeropointlauncher.parse;
 import org.junit.jupiter.api.Test;
 import org.zeropointlauncher.launch.model.LaunchArgument;
 import org.zeropointlauncher.launch.model.Library;
+import org.zeropointlauncher.launch.model.OsRule;
 import org.zeropointlauncher.launch.model.Rule;
+import org.zeropointlauncher.launch.model.RuleAction;
 import org.zeropointlauncher.launch.parse.ManifestFragmentParser;
 import org.zeropointlauncher.launch.parse.ManifestParseException;
+import org.zeropointlauncher.launch.parse.ParseWarningCode;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -121,14 +125,15 @@ class ManifestFragmentTest {
                 """).arguments();
         assertNotNull(arguments);
 
-        var featureRule = new Rule(Rule.Action.ALLOW, null, Map.of("is_demo_user", false));
+        var featureRule = new Rule(RuleAction.ALLOW, Optional.empty(), Map.of("is_demo_user", false));
         assertEquals(List.of(new LaunchArgument.Conditional(
                 List.of(featureRule), List.of("--username", "Demo Player")
         )), arguments.game());
 
-        var allow = new Rule(Rule.Action.ALLOW, null, Map.of());
-        var os = new Rule.Os("windows", "x86", "^10");
-        var disallow = new Rule(Rule.Action.DISALLOW, os, Map.of());
+        var allow = new Rule(RuleAction.ALLOW, Optional.empty(), Map.of());
+        var os = new OsRule(
+                Optional.of("windows"), Optional.of("x86"), Optional.of("^10"));
+        var disallow = new Rule(RuleAction.DISALLOW, Optional.of(os), Map.of());
         assertEquals(List.of(
                 new LaunchArgument.Direct("-ea"),
                 new LaunchArgument.Conditional(List.of(allow, disallow), List.of("-Ddemo=true"))
@@ -189,8 +194,9 @@ class ManifestFragmentTest {
         )), platform.classifiers());
         assertEquals(List.of("META-INF/"), platform.extractExcludes());
         assertEquals(List.of(
-                new Rule(Rule.Action.ALLOW, null, Map.of()),
-                new Rule(Rule.Action.DISALLOW, new Rule.Os("osx", null, null), Map.of())
+                new Rule(RuleAction.ALLOW, Optional.empty(), Map.of()),
+                new Rule(RuleAction.DISALLOW, Optional.of(new OsRule(
+                        Optional.of("osx"), Optional.empty(), Optional.empty())), Map.of())
         ), platform.rules());
 
         assertEquals(new Library.DownloadArtifact(
@@ -200,7 +206,7 @@ class ManifestFragmentTest {
     }
 
     @Test
-    void numericIdAndQuotedBooleansAreCoerced() {
+    void numericIdIsCoercedButNonBooleanFeatureMakesRuleMalformed() {
         var fragment = parser.parse("""
                 {"id":1.20,
                  "arguments":{"game":[{"rules":[{"action":"allow",
@@ -209,7 +215,11 @@ class ManifestFragmentTest {
 
         assertEquals("1.20", fragment.id());
         var conditional = (LaunchArgument.Conditional) fragment.gameArguments().getFirst();
-        assertTrue(conditional.rules().getFirst().features().get("is_demo_user"));
+        assertEquals(1, conditional.rules().size());
+        var rule = conditional.rules().getFirst();
+        assertTrue(rule.malformed());
+        assertEquals(RuleAction.ALLOW, rule.action());
+        assertEquals(Map.of(), rule.features());
         assertEquals(List.of("--demo"), conditional.value());
     }
 
@@ -221,7 +231,7 @@ class ManifestFragmentTest {
             var rule = parser.parse("""
                     {"id":"x","libraries":[{"name":"a","rules":%s}]}
                     """.formatted(rules)).libraries().getFirst().rules().getFirst();
-            assertEquals(Rule.Action.DISALLOW, rule.action());
+            assertEquals(RuleAction.DISALLOW, rule.action());
         }
     }
 
@@ -232,7 +242,7 @@ class ManifestFragmentTest {
                 """).libraries().getFirst().rules();
 
         assertEquals(1, rules.size());
-        assertEquals(Rule.Action.DISALLOW, rules.getFirst().action());
+        assertEquals(RuleAction.DISALLOW, rules.getFirst().action());
     }
 
     @Test
@@ -275,7 +285,7 @@ class ManifestFragmentTest {
                   {"action":"allow","os":null,"features":null}
                 ]}]}
                 """).libraries().getFirst().rules().getFirst();
-        assertNull(rule.os());
+        assertTrue(rule.os().isEmpty());
         assertEquals(Map.of(), rule.features());
     }
 
@@ -292,7 +302,7 @@ class ManifestFragmentTest {
         assertEquals(List.of(new LaunchArgument.Direct("--demo")), fragment.gameArguments());
         var library = fragment.libraries().getFirst();
         assertEquals(1, library.rules().size());
-        assertEquals(Rule.Action.ALLOW, library.rules().getFirst().action());
+        assertEquals(RuleAction.ALLOW, library.rules().getFirst().action());
         assertEquals(List.of("META-INF/"), library.extractExcludes());
     }
 
@@ -309,7 +319,7 @@ class ManifestFragmentTest {
     }
 
     @Test
-    void numericMetadataValuesAreCoerced() {
+    void numericNativesAreCoercedButNumericOsArchMakesRuleMalformed() {
         var library = parser.parse("""
                 {"id":"x","libraries":[{
                   "name":"a",
@@ -319,7 +329,118 @@ class ManifestFragmentTest {
                 """).libraries().getFirst();
 
         assertEquals(Map.of("windows", "64"), library.natives());
-        assertEquals("64", library.rules().getFirst().os().arch());
+        var rule = library.rules().getFirst();
+        assertTrue(rule.malformed());
+        assertEquals(Optional.of("windows"), rule.os().orElseThrow().name());
+        assertTrue(rule.os().orElseThrow().arch().isEmpty());
+    }
+
+    @Test
+    void malformedDeclaredConditionsAreMarkedMalformed() {
+        var rules = parser.parse("""
+                {"id":"x","libraries":[{"name":"a","rules":[
+                  {"action":"allow","os":[],"features":[]},
+                  {"action":"allow","os":{"name":false}},
+                  {"action":"allow","features":{"is_demo_user":"true"}},
+                  {"action":"allow","features":{"is_demo_user":1}},
+                  {"action":"allow","os":null,"features":null},
+                  {"action":"allow","os":{},"features":{}}
+                ]}]}
+                """).libraries().getFirst().rules();
+
+        assertEquals(6, rules.size());
+        assertTrue(rules.get(0).malformed());
+        assertTrue(rules.get(1).malformed());
+        assertTrue(rules.get(2).malformed());
+        assertTrue(rules.get(3).malformed());
+        assertFalse(rules.get(4).malformed());
+        assertFalse(rules.get(5).malformed());
+        assertEquals(Map.of(), rules.get(5).features());
+        assertTrue(rules.get(5).os().isPresent());
+    }
+
+    @Test
+    void unknownOsConditionsAndBlankIdentifiersAreMalformed() {
+        var rules = parser.parse("""
+                {"id":"x","libraries":[{"name":"a","rules":[
+                  {"action":"allow","os":{"name":"linux","abi":"musl"}},
+                  {"action":"allow","os":{"name":"   "}},
+                  {"action":"allow","os":{"arch":""}},
+                  {"action":"allow","os":{"version":"   "}}
+                ]}]}
+                """).libraries().getFirst().rules();
+
+        assertEquals(4, rules.size());
+        assertTrue(rules.get(0).malformed());
+        assertTrue(rules.get(1).malformed());
+        assertTrue(rules.get(2).malformed());
+        assertFalse(rules.get(3).malformed());
+        assertEquals(Optional.of("linux"), rules.get(0).os().orElseThrow().name());
+        assertEquals(Optional.of("   "), rules.get(1).os().orElseThrow().name());
+        assertEquals(Optional.of(""), rules.get(2).os().orElseThrow().arch());
+        assertEquals(Optional.of("   "), rules.get(3).os().orElseThrow().version());
+    }
+
+    @Test
+    void parseWithDiagnosticsReportsMalformedAndUnknownConditions() {
+        var result = parser.parseWithDiagnostics("""
+                {"id":"x","libraries":[{"name":"a","rules":[
+                  {"action":"allow","os":{"name":"linux","abi":"musl"}},
+                  {"action":"allow","os":{"name":"   "}},
+                  {"action":"allow","features":[]},
+                  {"action":"allow"}
+                ]}]}
+                """);
+
+        assertTrue(result.hasWarnings());
+        assertEquals(3, result.warnings().size());
+        assertEquals(ParseWarningCode.UNKNOWN_RULE_CONDITION, result.warnings().get(0).code());
+        assertTrue(result.warnings().get(0).message().contains("abi"));
+        assertEquals(ParseWarningCode.MALFORMED_RULE, result.warnings().get(1).code());
+        assertEquals(ParseWarningCode.MALFORMED_RULE, result.warnings().get(2).code());
+        assertEquals(4, result.fragment().libraries().getFirst().rules().size());
+        assertFalse(result.fragment().libraries().getFirst().rules().get(3).malformed());
+    }
+
+    @Test
+    void parseWithDiagnosticsReportsWarningsInsideConditionalArguments() {
+        var result = parser.parseWithDiagnostics("""
+                {"id":"x","arguments":{"game":[{"rules":[
+                  {"action":"allow","os":{"name":"linux","abi":"musl"}}
+                ],"value":"--demo"}]}}
+                """);
+
+        assertEquals(1, result.warnings().size());
+        assertEquals(ParseWarningCode.UNKNOWN_RULE_CONDITION, result.warnings().get(0).code());
+    }
+
+    @Test
+    void parseWithDiagnosticsReportsNonObjectRuleElement() {
+        var result = parser.parseWithDiagnostics("""
+                {"id":"x","libraries":[{"name":"a","rules":["allow"]}]}
+                """);
+
+        assertEquals(1, result.warnings().size());
+        assertEquals(ParseWarningCode.MALFORMED_RULE, result.warnings().get(0).code());
+        assertEquals(RuleAction.DISALLOW,
+                result.fragment().libraries().getFirst().rules().getFirst().action());
+    }
+
+    @Test
+    void parseWithDiagnosticsReportsMalformedVersionRegex() {
+        var result = parser.parseWithDiagnostics("""
+                {"id":"x","libraries":[{"name":"a","rules":[
+                  {"action":"disallow","os":{"version":"[a-z"}}
+                ]}]}
+                """);
+
+        assertEquals(1, result.warnings().size());
+        assertEquals(ParseWarningCode.MALFORMED_RULE, result.warnings().get(0).code());
+        assertTrue(result.warnings().get(0).message().contains("[a-z"));
+
+        var rule = result.fragment().libraries().getFirst().rules().getFirst();
+        assertTrue(rule.malformed());
+        assertEquals(Optional.of("[a-z"), rule.os().orElseThrow().version());
     }
 
     @Test

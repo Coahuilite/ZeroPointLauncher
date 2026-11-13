@@ -9,6 +9,7 @@
 1. [架构与边界](architecture.md)：核心、前端、宿主和外部服务分别负责什么。
 2. [分层文件系统](layerfs.md)：继承、覆盖、写入隔离、升级和迁移的行为。
 3. [游戏运行时](runtime.md)：多 Java、跨平台游戏组件和启动生命周期。
+   [Minecraft 版本清单语义与时期变化](minecraft-manifest-semantics.md)详解官方数据入口、参数和 native 布局演进、字段含义及分期取样方法。
 4. [验收与实施顺序](acceptance.md)：将契约变成测试与可交付纵切面。
 5. [规格工作方法](workflow.md)：为什么采用轻量 SDD，以及工具选型结论。
 6. [旧实现证据](legacy-evidence.md)：保留理念、解释差异与制作迁移样本的来源。
